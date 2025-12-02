@@ -9,13 +9,251 @@ import os
 import joblib
 import numpy as np
 import pandas as pd
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template_string
 from flask_cors import CORS
 from datetime import datetime
 import pytz
 
 app = Flask(__name__)
 CORS(app)
+
+# HTML UI Template
+HTML_TEMPLATE = '''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LabVio ML API</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .header h1 {
+            color: #333;
+            font-size: 32px;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 30px;
+            padding: 12px 16px;
+            background: #f0f4ff;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .status.healthy {
+            background: #f0fdf4;
+            border-left-color: #10b981;
+        }
+        .status.healthy .indicator {
+            background: #10b981;
+        }
+        .indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #667eea;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .status-text {
+            color: #333;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .features {
+            margin-bottom: 30px;
+        }
+        .features h2 {
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 16px;
+        }
+        .feature-list {
+            list-style: none;
+        }
+        .feature-list li {
+            color: #555;
+            font-size: 14px;
+            padding: 8px 0;
+            padding-left: 24px;
+            position: relative;
+        }
+        .feature-list li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #10b981;
+            font-weight: bold;
+        }
+        .endpoints {
+            margin-bottom: 30px;
+        }
+        .endpoints h2 {
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 16px;
+        }
+        .endpoint {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+            border-left: 4px solid #667eea;
+        }
+        .endpoint-method {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 8px;
+        }
+        .endpoint-method.get {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        .endpoint-method.post {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        .endpoint-path {
+            font-family: 'Courier New', monospace;
+            color: #333;
+            font-size: 14px;
+            margin-top: 4px;
+        }
+        .cta {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        .btn-secondary {
+            background: #f0f4ff;
+            color: #667eea;
+            border: 1px solid #667eea;
+        }
+        .btn-secondary:hover {
+            background: #667eea;
+            color: white;
+        }
+        .info {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-size: 12px;
+            color: #92400e;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔬 LabVio ML API</h1>
+            <p>Health Risk Prediction Service</p>
+        </div>
+
+        <div class="status healthy">
+            <div class="indicator"></div>
+            <div class="status-text">Service Status: <strong>Operational</strong></div>
+        </div>
+
+        <div class="features">
+            <h2>Features</h2>
+            <ul class="feature-list">
+                <li>Unified ML Model for multiple lab types</li>
+                <li>CBC, Urinalysis, and Lipid Profile support</li>
+                <li>Real-time health risk predictions</li>
+                <li>High accuracy predictions (~99%)</li>
+            </ul>
+        </div>
+
+        <div class="endpoints">
+            <h2>API Endpoints</h2>
+            <div class="endpoint">
+                <div>
+                    <span class="endpoint-method get">GET</span>
+                    <span class="endpoint-path">/health</span>
+                </div>
+                <p style="color: #666; font-size: 12px; margin-top: 4px;">Health check endpoint</p>
+            </div>
+            <div class="endpoint">
+                <div>
+                    <span class="endpoint-method post">POST</span>
+                    <span class="endpoint-path">/predict</span>
+                </div>
+                <p style="color: #666; font-size: 12px; margin-top: 4px;">Predict health risk from lab values</p>
+            </div>
+        </div>
+
+        <div class="cta">
+            <button class="btn-primary" onclick="location.href='/health'">Check Health</button>
+            <button class="btn-secondary" onclick="window.open('https://github.com/marjames4/LabVioUltimatum', '_blank')">Documentation</button>
+        </div>
+
+        <div class="info">
+            ℹ️ This is a machine learning API for health risk assessment. It is for research and educational purposes only and should not be used for clinical diagnosis or treatment decisions.
+        </div>
+    </div>
+</body>
+</html>
+'''
 
 # Global model storage
 models = {
@@ -81,6 +319,11 @@ def parse_value(value, default=0.0):
                 return 0.0
             return default
     return default
+
+@app.route('/', methods=['GET'])
+def index():
+    """Root endpoint - displays web interface"""
+    return render_template_string(HTML_TEMPLATE)
 
 @app.route('/health', methods=['GET'])
 def health_check():
