@@ -432,7 +432,8 @@ if __name__ == '__main__':
     
     if load_models():
         print("🌐 Starting server on 0.0.0.0:7860")
-        app.run(host='0.0.0.0', port=7860, debug=False)
+        # HuggingFace Spaces runs on port 7860
+        app.run(host='0.0.0.0', port=7860, debug=False, threaded=True)
     else:
         print("❌ Failed to load models.")
         exit(1)
