@@ -16,8 +16,9 @@ COPY app.py .
 # Expose port
 EXPOSE 7860
 
-# Set environment variable
+# Set environment variables
 ENV PYTHONUNBUFFERED=1
+ENV FLASK_ENV=production
 
 # Run the application
 CMD ["python", "app.py"]
