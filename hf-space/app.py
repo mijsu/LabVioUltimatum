@@ -319,7 +319,10 @@ def parse_value(value, default=0.0):
                 return 0.0
             return default
     return default
-
+@app.route('/', methods=['GET'])
+def index():
+    """Root endpoint - displays web interface"""
+    return render_template_string(HTML_TEMPLATE)
 @app.route('/', methods=['GET'])
 def index():
     """Root endpoint - displays web interface"""
